@@ -1,55 +1,45 @@
-﻿use std::collections::HashMap;
-use std::sync::atomic::{AtomicI32, Ordering};
+﻿use crate::client::render::{GLTexTarget, GLTextureMode, GL};
+use glu_sys::{glTexParameteri, gluBuild2DMipmaps, GLint, GLuint, GLvoid, GL_RGBA, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_TEXTURE_MIN_FILTER, GL_UNSIGNED_BYTE};
+use image::ImageReader;
+use std::collections::HashMap;
 use std::sync::Mutex;
 
-use crate::glu::*;
-
-use image::io::Reader as ImageReader;
-
 lazy_static! {
-    static ref ID_MAP: Mutex<HashMap<String, i32>> = Mutex::new(HashMap::new());
+    static ref ID_MAP: Mutex<HashMap<String, Texture>> = Mutex::new(HashMap::new());
 }
 
-static LAST_ID: AtomicI32 = AtomicI32::new(-9999999);
+#[derive(Debug, Copy, Clone)]
+pub struct Texture(u32, GLTexTarget);
 
-pub fn load_texture(resource_name: &str, mode: i32) -> i32 {
-    if ID_MAP.lock().unwrap().contains_key(resource_name) {
-        return *ID_MAP.lock().unwrap().get(resource_name).unwrap();
+impl Texture {
+    pub fn id(&self) -> GLuint {
+        self.0
     }
-    let mut ib: [GLuint; 1] = [0; 1];
-    unsafe {
-        glGenTextures(1, ib.as_mut_ptr());
+
+    pub fn target(&self) -> GLTexTarget {
+        self.1
     }
-    let id = ib[0];
-    bind(id as GLint);
-    unsafe {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, mode);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mode);
-        let img = ImageReader::open(resource_name).unwrap().decode().unwrap();
-        let img = img.as_rgb8().unwrap();
-        let (w, h) = img.dimensions();
-        let mut pixels = img.as_raw().clone();
-        for i in 0..(w * h) {
-            pixels.insert(i as usize * 4 + 3, 0);
+
+    pub fn load(gl: &mut GL, resource_name: &str, mode: GLTextureMode) -> Texture {
+        if ID_MAP.lock().unwrap().contains_key(resource_name) {
+            return *ID_MAP.lock().unwrap().get(resource_name).unwrap();
         }
-        gluBuild2DMipmaps(
-            GL_TEXTURE_2D,
-            GL_RGBA as GLint,
-            w as GLint,
-            h as GLint,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            pixels.as_ptr() as *const GLvoid,
-        );
-    }
-    id as i32
-}
-
-pub fn bind(id: i32) {
-    if id != LAST_ID.load(Ordering::SeqCst) {
+        let mut id = [0; 1];
+        gl.gen_textures(&mut id);
+        let text = Texture(id[0], GLTexTarget::Texture2D);
+        ID_MAP.lock().unwrap().insert(resource_name.to_string(), text);
+        println!("{} -> {:?}", resource_name, text);
         unsafe {
-            glBindTexture(GL_TEXTURE_2D, id as GLuint);
+            gl.bind_texture(text);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, mode as GLint);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mode as GLint);
+            let img = ImageReader::open(resource_name).unwrap().decode().unwrap();
+            let img = img.to_rgba8();
+            let (w, h) = img.dimensions();
+            let pixels = img.as_raw().clone();
+            gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGBA as GLint, w as GLint, h as GLint, GL_RGBA, GL_UNSIGNED_BYTE, pixels.as_ptr() as *const GLvoid);
         }
-        LAST_ID.store(id, Ordering::SeqCst)
+        text
     }
 }
+

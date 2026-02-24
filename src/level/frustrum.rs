@@ -1,8 +1,7 @@
-﻿use std::sync::Mutex;
-
-use crate::glu::*;
-
+﻿use crate::math::vec3::Vec3;
 use crate::phys::aabb::AABB;
+use glu_sys::{glGetFloatv, GLfloat, GL_MODELVIEW_MATRIX, GL_PROJECTION_MATRIX};
+use std::sync::Mutex;
 
 pub const RIGHT: usize = 0;
 pub const LEFT: usize = 1;
@@ -167,49 +166,18 @@ impl Frustum {
         Self::normalize_plane(&mut self.m_frustum, FRONT);
     }
 
-    pub fn cube_in_frustum(&self, x1: f32, y1: f32, z1: f32, x2: f32, y2: f32, z2: f32) -> bool {
+    pub fn cube_in_frustum(&self, start: impl Into<Vec3>, end: impl Into<Vec3>) -> bool {
+        let start = start.into();
+        let end = end.into();
         for i in 0..6 {
-            if !(self.m_frustum[i][0] * x1
-                + self.m_frustum[i][1] * y1
-                + self.m_frustum[i][2] * z1
-                + self.m_frustum[i][3]
-                > 0.0
-                || self.m_frustum[i][0] * x2
-                + self.m_frustum[i][1] * y1
-                + self.m_frustum[i][2] * z1
-                + self.m_frustum[i][3]
-                > 0.0
-                || self.m_frustum[i][0] * x1
-                + self.m_frustum[i][1] * y2
-                + self.m_frustum[i][2] * z1
-                + self.m_frustum[i][3]
-                > 0.0
-                || self.m_frustum[i][0] * x2
-                + self.m_frustum[i][1] * y2
-                + self.m_frustum[i][2] * z1
-                + self.m_frustum[i][3]
-                > 0.0
-                || self.m_frustum[i][0] * x1
-                + self.m_frustum[i][1] * y1
-                + self.m_frustum[i][2] * z2
-                + self.m_frustum[i][3]
-                > 0.0
-                || self.m_frustum[i][0] * x2
-                + self.m_frustum[i][1] * y1
-                + self.m_frustum[i][2] * z2
-                + self.m_frustum[i][3]
-                > 0.0
-                || self.m_frustum[i][0] * x1
-                + self.m_frustum[i][1] * y2
-                + self.m_frustum[i][2] * z2
-                + self.m_frustum[i][3]
-                > 0.0
-                || self.m_frustum[i][0] * x2
-                + self.m_frustum[i][1] * y2
-                + self.m_frustum[i][2] * z2
-                + self.m_frustum[i][3]
-                > 0.0)
-            {
+            if !(self.m_frustum[i][0] * start.x() + self.m_frustum[i][1] * start.y() + self.m_frustum[i][2] * start.z() + self.m_frustum[i][3] > 0.0
+                || self.m_frustum[i][0] * end.x() + self.m_frustum[i][1] * start.y() + self.m_frustum[i][2] * start.z() + self.m_frustum[i][3] > 0.0
+                || self.m_frustum[i][0] * start.x() + self.m_frustum[i][1] * end.y() + self.m_frustum[i][2] * start.z() + self.m_frustum[i][3] > 0.0
+                || self.m_frustum[i][0] * end.x() + self.m_frustum[i][1] * end.y() + self.m_frustum[i][2] * start.z() + self.m_frustum[i][3] > 0.0
+                || self.m_frustum[i][0] * start.x() + self.m_frustum[i][1] * start.y() + self.m_frustum[i][2] * end.z() + self.m_frustum[i][3] > 0.0
+                || self.m_frustum[i][0] * end.x() + self.m_frustum[i][1] * start.y() + self.m_frustum[i][2] * end.z() + self.m_frustum[i][3] > 0.0
+                || self.m_frustum[i][0] * start.x() + self.m_frustum[i][1] * end.y() + self.m_frustum[i][2] * end.z() + self.m_frustum[i][3] > 0.0
+                || self.m_frustum[i][0] * end.x() + self.m_frustum[i][1] * end.y() + self.m_frustum[i][2] * end.z() + self.m_frustum[i][3] > 0.0) {
                 return false;
             }
         }
@@ -217,6 +185,6 @@ impl Frustum {
     }
 
     pub fn cube_in_frustum_aabb(&self, aabb: &AABB) -> bool {
-        self.cube_in_frustum(aabb.x0, aabb.y0, aabb.z0, aabb.x1, aabb.y1, aabb.z1)
+        self.cube_in_frustum(aabb.start, aabb.end)
     }
 }

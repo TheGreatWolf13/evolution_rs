@@ -1,4 +1,9 @@
-﻿use std::{
+﻿use super::{level::Level, tesselator::Tesselator, tile};
+use crate::client::render::{GLCap, GL};
+use crate::phys::aabb::AABB;
+use crate::textures::Texture;
+use glu_sys::{glCallList, glEndList, glGenLists, glNewList, GLuint, GL_COMPILE};
+use std::{
     cell::RefCell,
     rc::Rc,
     sync::{
@@ -7,15 +12,7 @@
     },
 };
 
-use crate::glu::*;
-
-use crate::{phys::aabb::AABB, textures};
-
-use super::{level::Level, tesselator::Tesselator, tile};
-
 lazy_static! {
-    static ref TEXTURE: AtomicI32 =
-        AtomicI32::new(textures::load_texture("terrain.png", GL_NEAREST as i32));
     static ref TESSELATOR: Mutex<Tesselator> = Mutex::new(Tesselator::new());
 }
 
@@ -36,20 +33,10 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn new(
-        level: Rc<RefCell<Level>>,
-        x0: i32,
-        y0: i32,
-        z0: i32,
-        x1: i32,
-        y1: i32,
-        z1: i32,
-    ) -> Chunk {
+    pub fn new(level: Rc<RefCell<Level>>, x0: i32, y0: i32, z0: i32, x1: i32, y1: i32, z1: i32) -> Chunk {
         unsafe {
             Chunk {
-                aabb: AABB::new(
-                    x0 as f32, y0 as f32, z0 as f32, x1 as f32, y1 as f32, z1 as f32,
-                ),
+                aabb: AABB::new((x0 as f32, y0 as f32, z0 as f32), (x1 as f32, y1 as f32, z1 as f32)),
                 level,
                 x0,
                 y0,
@@ -63,7 +50,7 @@ impl Chunk {
         }
     }
 
-    fn rebuild(&mut self, layer: i32) {
+    fn rebuild(&mut self, gl: &mut GL, terrain_text: Texture, layer: i32) {
         if REBUILT_THIS_FRAME.load(Ordering::SeqCst) == 2 {
             return;
         }
@@ -75,9 +62,9 @@ impl Chunk {
         );
         unsafe {
             glNewList((self.lists + layer) as GLuint, GL_COMPILE);
-            glEnable(GL_TEXTURE_2D);
-            glBindTexture(GL_TEXTURE_2D, TEXTURE.load(Ordering::SeqCst) as u32);
         }
+        gl.enable(GLCap::Texture2D);
+        gl.bind_texture(terrain_text);
         TESSELATOR.lock().unwrap().init();
         for x in self.x0..self.x1 {
             for y in self.y0..self.y1 {
@@ -109,15 +96,15 @@ impl Chunk {
         }
         TESSELATOR.lock().unwrap().flush();
         unsafe {
-            glDisable(GL_TEXTURE_2D);
+            gl.disable(GLCap::Texture2D);
             glEndList();
         }
     }
 
-    pub fn render(&mut self, layer: i32) {
+    pub fn render(&mut self, gl: &mut GL, terrain_text: Texture, layer: i32) {
         if self.dirty {
-            self.rebuild(0);
-            self.rebuild(1);
+            self.rebuild(gl, terrain_text, 0);
+            self.rebuild(gl, terrain_text, 1);
         }
         unsafe {
             glCallList((self.lists + layer) as GLuint);

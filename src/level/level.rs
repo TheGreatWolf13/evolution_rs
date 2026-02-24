@@ -29,7 +29,6 @@ impl Level {
             light_depths: vec![0; (w * h) as usize],
             level_listeners: vec![],
         };
-
         for x in 0..w {
             for y in 0..d {
                 for z in 0..h {
@@ -38,10 +37,8 @@ impl Level {
                 }
             }
         }
-
         level.calc_light_depths(0, 0, w, h);
         level.load();
-
         level
     }
 
@@ -76,9 +73,7 @@ impl Level {
                     let yl0 = if old_depth < y { old_depth } else { y };
                     let yl1 = if old_depth > y { old_depth } else { y };
                     for level_listener in &self.level_listeners {
-                        level_listener
-                            .borrow_mut()
-                            .light_column_changed(x, y, yl0, yl1);
+                        level_listener.borrow_mut().light_column_changed(x, y, yl0, yl1);
                     }
                 }
             }
@@ -106,12 +101,12 @@ impl Level {
 
     pub fn get_cubes(&self, aabb: AABB) -> Vec<AABB> {
         let mut aabbs = vec![];
-        let mut x0 = aabb.x0 as i32;
-        let mut x1 = (aabb.x1 + 1.0) as i32;
-        let mut y0 = aabb.y0 as i32;
-        let mut y1 = (aabb.y1 + 1.0) as i32;
-        let mut z0 = aabb.z0 as i32;
-        let mut z1 = (aabb.z1 + 1.0) as i32;
+        let mut x0 = aabb.start.x() as i32;
+        let mut x1 = (aabb.end.x() + 1.0) as i32;
+        let mut y0 = aabb.start.y() as i32;
+        let mut y1 = (aabb.end.y() + 1.0) as i32;
+        let mut z0 = aabb.start.z() as i32;
+        let mut z1 = (aabb.end.z() + 1.0) as i32;
         if x0 < 0 {
             x0 = 0;
         }
@@ -130,24 +125,15 @@ impl Level {
         if z1 > self.height {
             z1 = self.height;
         }
-
         for x in x0..x1 {
             for y in y0..y1 {
                 for z in z0..z1 {
                     if self.is_solid_tile(x, y, z) {
-                        aabbs.push(AABB::new(
-                            x as f32,
-                            y as f32,
-                            z as f32,
-                            (x + 1) as f32,
-                            (y + 1) as f32,
-                            (z + 1) as f32,
-                        ));
+                        aabbs.push(AABB::new((x as f32, y as f32, z as f32), ((x + 1) as f32, (y + 1) as f32, (z + 1) as f32)));
                     }
                 }
             }
         }
-
         aabbs
     }
 

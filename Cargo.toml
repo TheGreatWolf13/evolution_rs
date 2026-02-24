@@ -1,13 +1,20 @@
 ﻿[package]
-name = "evolution"
+name = "evolution_rs"
 version = "0.1.0"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lwrgl = { path = "../lwrgl", version = "0.1.0" }
-rand = "0.8"
+rand = "0.10.0"
 flate2 = "1.0"
 lazy_static = "1.4.0"
-image = "0.24"
+image = "0.25.9"
+glfw = "0.61.0"
+glu-sys = "0.1"
+glam = "0.32.0"
+bitmask-enum = "2.2.5"
+typed_floats = "1.0.7"
+strum = { version = "0.28.0", features = ["derive"] }
+strum_macros = "0.28.0"
+freetype = "0.7.2"

@@ -1,50 +1,37 @@
-﻿use std::cell::RefCell;
-use std::rc::Rc;
-
+﻿use crate::client::Engine;
+use crate::math::angle::{Angle, Rot3Deg};
+use crate::math::vec3::Vec3;
 use crate::{level::level::Level, phys::aabb::AABB};
-use lwrgl::glfw::Key;
-use lwrgl::LWRGL;
+use glfw::Key;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Player {
     level: Rc<RefCell<Level>>,
-    pub xo: f32,
-    pub yo: f32,
-    pub zo: f32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub xd: f32,
-    pub yd: f32,
-    pub zd: f32,
-    pub y_rot: f32,
-    pub x_rot: f32,
+    pub ro: Vec3,
+    pub r: Vec3,
+    pub rd: Vec3,
+    pub rot: Rot3Deg,
     pub bb: AABB,
     pub on_ground: bool,
 }
 
 impl Player {
     pub fn new(level: Rc<RefCell<Level>>) -> Player {
-        let x = rand::random::<f32>() * level.borrow().width as f32;
-        let y = (level.borrow().depth + 10) as f32;
-        let z = rand::random::<f32>() * level.borrow().height as f32;
-
+        let r = Vec3::new(
+            rand::random::<f32>() * level.borrow().width as f32,
+            (level.borrow().depth + 10) as f32,
+            rand::random::<f32>() * level.borrow().height as f32,
+        );
         let w = 0.3;
         let h = 0.9;
-
         Player {
             level,
-            xo: 0.0,
-            yo: 0.0,
-            zo: 0.0,
-            x,
-            y,
-            z,
-            xd: 0.0,
-            yd: 0.0,
-            zd: 0.0,
-            y_rot: 0.0,
-            x_rot: 0.0,
-            bb: AABB::new(x - w, y - h, z - w, x + w, y + h, z + w),
+            ro: Vec3::ZERO,
+            r,
+            rd: Vec3::ZERO,
+            rot: Rot3Deg::ZERO,
+            bb: AABB::new(r - (w, h, w), r + (w, h, w)),
             on_ground: false,
         }
     }
@@ -53,116 +40,96 @@ impl Player {
         let x = rand::random::<f32>() * self.level.borrow().width as f32;
         let y = (self.level.borrow().depth + 10) as f32;
         let z = rand::random::<f32>() * self.level.borrow().height as f32;
-        self.set_pos(x, y, z);
+        self.set_pos((x, y, z));
     }
 
-    pub fn set_pos(&mut self, x: f32, y: f32, z: f32) {
-        self.x = x;
-        self.y = y;
-        self.z = z;
+    pub fn set_pos(&mut self, r: impl Into<Vec3>) {
+        let r = r.into();
+        self.r = r;
         let w = 0.3;
         let h = 0.9;
-        self.bb = AABB::new(x - w, y - h, z - w, x + w, y + h, z + w);
+        self.bb = AABB::new(r - (w, h, w), r + (w, h, w));
     }
 
-    pub fn turn(&mut self, xo: i32, yo: i32) {
-        self.y_rot = (self.y_rot as f64 + (xo as f64 * 0.15)) as f32;
-        self.x_rot = (self.x_rot as f64 + (yo as f64 * 0.15)) as f32;
-
-        if self.x_rot < -90.0 {
-            self.x_rot = -90.0;
-        }
-        if self.x_rot > 90.0 {
-            self.x_rot = 90.0;
-        }
+    pub fn turn(&mut self, rot: Rot3Deg) {
+        self.rot = self.rot + rot * 0.15;
+        // *self.rot.x_mut() = self.rot.x().clamp(-90.0, 90.0);
     }
 
-    pub fn tick(&mut self, lwrgl: &LWRGL) {
-        self.xo = self.x;
-        self.yo = self.y;
-        self.zo = self.z;
+    pub fn tick(&mut self, engine: &Engine) {
+        self.ro = self.r;
         let mut xa = 0.0;
         let mut ya = 0.0;
-
-        if lwrgl.is_key_down(Key::R) {
+        if engine.is_key_down(Key::R) {
             self.reset_pos();
         }
-        if lwrgl.is_key_down(Key::Up) || lwrgl.is_key_down(Key::W) {
+        if engine.is_key_down(Key::Up) || engine.is_key_down(Key::W) {
             ya -= 1.0;
         }
-        if lwrgl.is_key_down(Key::Down) || lwrgl.is_key_down(Key::S) {
+        if engine.is_key_down(Key::Down) || engine.is_key_down(Key::S) {
             ya += 1.0;
         }
-        if lwrgl.is_key_down(Key::Left) || lwrgl.is_key_down(Key::A) {
+        if engine.is_key_down(Key::Left) || engine.is_key_down(Key::A) {
             xa -= 1.0;
         }
-        if lwrgl.is_key_down(Key::Right) || lwrgl.is_key_down(Key::D) {
+        if engine.is_key_down(Key::Right) || engine.is_key_down(Key::D) {
             xa += 1.0;
         }
-        if (lwrgl.is_key_down(Key::Space) || lwrgl.is_key_down(Key::LeftSuper)) && self.on_ground {
-            self.yd = 0.12;
+        if (engine.is_key_down(Key::Space)) && self.on_ground {
+            *self.rd.y_mut() = 0.12;
         }
         let speed = if self.on_ground { 0.02 } else { 0.005 };
-        self.move_relative(xa, ya, speed);
-        self.yd = (self.yd as f64 - 0.005) as f32;
-        self.move_(self.xd, self.yd, self.zd);
-        self.xd *= 0.91;
-        self.yd *= 0.98;
-        self.zd *= 0.91;
+        self.move_relative((xa, 0.0, ya), speed);
+        *self.rd.y_mut() = (self.rd.y() as f64 - 0.005) as f32;
+        self.r#move(self.rd);
+        self.rd *= (0.91, 0.98, 0.91);
         if self.on_ground {
-            self.xd *= 0.8;
-            self.zd *= 0.8;
+            self.rd *= (0.8, 1.0, 0.8);
         }
     }
 
-    pub fn move_(&mut self, xa: f32, ya: f32, za: f32) {
-        let mut xa = xa;
-        let mut ya = ya;
-        let mut za = za;
-        let xa_org = xa;
-        let ya_org = ya;
-        let za_org = za;
-        let aabbs = self.level.borrow().get_cubes(self.bb.expand(xa, ya, za));
+    pub fn r#move(&mut self, a: impl Into<Vec3>) {
+        let mut a = a.into();
+        let a_org = a;
+        let aabbs = self.level.borrow().get_cubes(self.bb.expand(a));
         for aabb in &aabbs {
-            ya = aabb.clip_y_collide(&self.bb, ya);
+            *a.y_mut() = aabb.clip_y_collide(&self.bb, a.y());
         }
-        self.bb.move_(0.0, ya, 0.0);
+        self.bb.r#move((0.0, a.y(), 0.0));
         for aabb in &aabbs {
-            xa = aabb.clip_x_collide(&self.bb, xa);
+            *a.x_mut() = aabb.clip_x_collide(&self.bb, a.x());
         }
-        self.bb.move_(xa, 0.0, 0.0);
+        self.bb.r#move((a.x(), 0.0, 0.0));
         for aabb in &aabbs {
-            za = aabb.clip_z_collide(&self.bb, za);
+            *a.z_mut() = aabb.clip_z_collide(&self.bb, a.z());
         }
-        self.bb.move_(0.0, 0.0, za);
-        self.on_ground = ya_org != ya && ya_org < 0.0;
-        if xa_org != xa {
-            self.xd = 0.0;
+        self.bb.r#move((0.0, 0.0, a.z()));
+        self.on_ground = a_org.y() != a.y() && a_org.y() < 0.0;
+        if a_org.x() != a.x() {
+            *self.rd.x_mut() = 0.0;
         }
-        if ya_org != ya {
-            self.yd = 0.0;
+        if a_org.y() != a.y() {
+            *self.rd.y_mut() = 0.0;
         }
-        if za_org != za {
-            self.zd = 0.0;
+        if a_org.z() != a.z() {
+            *self.rd.z_mut() = 0.0;
         }
-        self.x = (self.bb.x0 + self.bb.x1) / 2.0;
-        self.y = self.bb.y0 + 1.62;
-        self.z = (self.bb.z0 + self.bb.z1) / 2.0;
+        self.r = Vec3::new(
+            (self.bb.start.x() + self.bb.end.x()) / 2.0,
+            self.bb.start.y() + 1.62,
+            (self.bb.start.z() + self.bb.end.z()) / 2.0,
+        );
     }
 
-    pub fn move_relative(&mut self, xa: f32, za: f32, speed: f32) {
-        let mut xa = xa;
-        let mut za = za;
-        let mut dist = xa * xa + za * za;
+    pub fn move_relative(&mut self, a: impl Into<Vec3>, speed: f32) {
+        let mut a = a.into();
+        let mut dist = a.horiz_len_sqr();
         if dist < 0.01 {
             return;
         }
         dist = speed / dist.sqrt();
-        let sin = (self.y_rot as f64 * std::f64::consts::PI / 180.0).sin() as f32;
-        let cos = (self.y_rot as f64 * std::f64::consts::PI / 180.0).cos() as f32;
-        xa *= dist;
-        za *= dist;
-        self.xd += xa * cos - za * sin;
-        self.zd += za * cos + xa * sin;
+        let (sin, cos) = self.rot.y().sin_cos();
+        a *= dist;
+        self.rd += (a.x() * cos - a.z() * sin, 0.0, a.z() * cos + a.x() * sin);
     }
 }

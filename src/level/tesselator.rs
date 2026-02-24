@@ -1,6 +1,5 @@
-﻿use std::ffi::c_void;
-
-use crate::glu::*;
+﻿use glu_sys::{glColorPointer, glDisableClientState, glDrawArrays, glEnableClientState, glTexCoordPointer, glVertexPointer, GLfloat, GLint, GL_COLOR_ARRAY, GL_FLOAT, GL_QUADS, GL_TEXTURE_COORD_ARRAY, GL_VERTEX_ARRAY};
+use std::ffi::c_void;
 
 const MAX_VERTICES: usize = 100000;
 
@@ -21,9 +20,9 @@ pub struct Tesselator {
 impl Tesselator {
     pub fn new() -> Tesselator {
         Tesselator {
-            vertex_buffer: Box::new([0.0; MAX_VERTICES * 3]),
-            tex_coord_buffer: Box::new([0.0; MAX_VERTICES * 2]),
-            color_buffer: Box::new([0.0; MAX_VERTICES * 3]),
+            vertex_buffer: vec![0.0; MAX_VERTICES * 3].try_into().unwrap(),
+            tex_coord_buffer: vec![0.0; MAX_VERTICES * 2].try_into().unwrap(),
+            color_buffer: vec![0.0; MAX_VERTICES * 3].try_into().unwrap(),
             vertices: 0,
             u: 0.0,
             v: 0.0,
@@ -39,12 +38,7 @@ impl Tesselator {
         unsafe {
             glVertexPointer(3, GL_FLOAT, 0, self.vertex_buffer.as_ptr() as *const c_void);
             if self.has_texture {
-                glTexCoordPointer(
-                    2,
-                    GL_FLOAT,
-                    0,
-                    self.tex_coord_buffer.as_ptr() as *const c_void,
-                );
+                glTexCoordPointer(2, GL_FLOAT, 0, self.tex_coord_buffer.as_ptr() as *const c_void);
             }
             if self.has_color {
                 glColorPointer(3, GL_FLOAT, 0, self.color_buffer.as_ptr() as *const c_void);
@@ -92,17 +86,17 @@ impl Tesselator {
     }
 
     pub fn vertex(&mut self, x: f32, y: f32, z: f32) {
-        self.vertex_buffer[(self.vertices * 3) as usize] = x;
-        self.vertex_buffer[(self.vertices * 3 + 1) as usize] = y;
-        self.vertex_buffer[(self.vertices * 3 + 2) as usize] = z;
+        self.vertex_buffer[self.vertices * 3] = x;
+        self.vertex_buffer[self.vertices * 3 + 1] = y;
+        self.vertex_buffer[self.vertices * 3 + 2] = z;
         if self.has_texture {
-            self.tex_coord_buffer[(self.vertices * 2) as usize] = self.u;
-            self.tex_coord_buffer[(self.vertices * 2 + 1) as usize] = self.v;
+            self.tex_coord_buffer[self.vertices * 2] = self.u;
+            self.tex_coord_buffer[self.vertices * 2 + 1] = self.v;
         }
         if self.has_color {
-            self.color_buffer[(self.vertices * 3) as usize] = self.r;
-            self.color_buffer[(self.vertices * 3 + 1) as usize] = self.g;
-            self.color_buffer[(self.vertices * 3 + 2) as usize] = self.b;
+            self.color_buffer[self.vertices * 3] = self.r;
+            self.color_buffer[self.vertices * 3 + 1] = self.g;
+            self.color_buffer[self.vertices * 3 + 2] = self.b;
         }
         self.vertices += 1;
         if self.vertices == MAX_VERTICES {
